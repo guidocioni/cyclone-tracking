@@ -15,15 +15,17 @@ begin
 
 ; Open model level output file
 
- File = addfile( "./control/complete.nc","r")
+ File = addfile( "./les/complete.nc","r")
  Filetopo = addfile( "../data_sicilia/extpar_guido_met_1226m.nc","r")
  
  time= File->time
  utc_date=cd_calendar(time, 0)
- gust=File->gust10
- mslp=(File->pres_sfc)/100.
+ gust=File->sp_10m
+ mslp=(File->pres_mslp)/100.
  topo=Filetopo->topography_c
  temp=File->temp
+ u=File->u
+ v=File->v
 
  lon = File->clon * rad2deg ; cell center, lon (ncells)
  lat = File->clat * rad2deg ; cell center, lat (ncells)
@@ -156,7 +158,6 @@ begin
  draw(map)
  frame(wks)
 
-
  ; plot centroid
  ; with temp. perturbation, and mslp
  
@@ -169,6 +170,12 @@ begin
  resc2=resc
  resc2@cnFillOn = False 
  resc2@cnLinesOn= True
+ rescw=True
+ rescw@gsnDraw = False
+ rescw@gsnFrame= False
+ rescw@vcMinDistanceF = 0.02
+ rescw@vcRefLengthF = 0.05
+ rescw@vcGlyphStyle = "CurlyVector"
 
  radius=1.0
  level=85
@@ -176,18 +183,24 @@ begin
      centroid=ind(lon^2+lat^2-2*lon*lon_min(i)-2*lat*lat_min(i) .le. radius^2-lon_min(i)^2-lat_min(i)^2)
      mslp_c=mslp(i,centroid)
      temp_c=temp(i,level,centroid)
+     u_c=u(i,89,centroid)
+     v_c=v(i,89,centroid)
      resc@gsnCenterString = hour(i)
      resc@sfXArray = lon(centroid) 
      resc@sfYArray = lat(centroid) 
      resc2@sfXArray = lon(centroid) 
-     resc2@sfYArray = lat(centroid) 
-     wks2= gsn_open_wks("x11","centroid")
+     resc2@sfYArray = lat(centroid)
+     rescw@vfXArray = lon(centroid)
+     rescw@vfYArray = lat(centroid)
+     wks2= gsn_open_wks("png","centroid"+i)
      plot=gsn_csm_contour(wks2, temp_c-avg(temp_c), resc)
      over=gsn_csm_contour(wks2, mslp_c, resc2)
+     ;over2=gsn_csm_vector(wks2, u_c,v_c,rescw )
      overlay(plot,over)
+     ;overlay(plot,over2)
      draw(plot)
      frame(wks2)
-     delete([/centroid, mslp_c, temp_c, resc@sfXArray, resc@sfYArray, resc2@sfXArray, resc2@sfYArray/])
+     delete([/centroid, u_c , v_c, mslp_c, temp_c, resc@sfXArray, resc@sfYArray, resc2@sfXArray, resc2@sfYArray, rescw@vfXArray, rescw@vfYArray/])
  end do
   
 
