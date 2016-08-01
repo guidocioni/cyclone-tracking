@@ -12,13 +12,12 @@ rad2deg  =  45./atan(1.)
 fillval  = -99999.9
 PVU=1E-6
 
-
 begin
 
 ; Open model level output file
 
- File = addfile( "./control/complete.nc","r")
- Filetopo = addfile( "../data_sicilia/extpar_guido_met_1226m.nc","r")
+ File = addfile( "./2p5km/complete.nc","r")
+ Filetopo = addfile( "../data_sicilia/extpar_guido_met_2451m.nc","r")
  
  time= File->time
  utc_date=cd_calendar(time, 0)
@@ -28,7 +27,7 @@ begin
  temp=File->temp
  u=File->u
  v=File->v
- pv=File->pv
+ pv=File->pv_2
  pv=pv/PVU
 
  lon = File->clon * rad2deg ; cell center, lon (ncells)
@@ -114,9 +113,15 @@ begin
          cell_min=ind(lon.ge.min_lon .and. lon.le.max_lon .and. lat.ge.min_lat .and. lat.le.max_lat \
          .and. mslp(i,:).eq. min(mslp(i,box_ini)) )
          ; cell_min should be 1-dimensional, otherwise shit happens
-         lat_min(k) = lat(cell_min)  
-         lon_min(k) = lon(cell_min)
-         mslp_min(k)= mslp(i,cell_min)
+         if(dimsizes(cell_min) .ne. 1) then 
+             lat_min(k) = lat(min(cell_min))  
+             lon_min(k) = lon(min(cell_min))
+             mslp_min(k)= mslp(i,min(cell_min))
+         else
+             lat_min(k) = lat(cell_min)  
+             lon_min(k) = lon(cell_min)
+             mslp_min(k)= mslp(i,cell_min)
+         end if
          circle=ind(lon^2+lat^2-2*lon*lon_min(k)-2*lat*lat_min(k) .le. radius^2-lon_min(k)^2-lat_min(k)^2)
          gust_max(k)=max(gust(i,0,circle))
          ; just to be sure that shit DOES not happen
@@ -196,7 +201,7 @@ begin
      resc2@sfYArray = lat(centroid)
      resc3@sfXArray = lon(centroid) 
      resc3@sfYArray = lat(centroid)
-     wks2= gsn_open_wks("png","centroid"+i)
+     wks2= gsn_open_wks("x11","centroid"+i)
      plot=gsn_csm_contour(wks2, temp_c-avg(temp_c), resc)
      over=gsn_csm_contour(wks2, mslp_c, resc2)
      over2=gsn_csm_contour(wks2, pv_c, resc3)
