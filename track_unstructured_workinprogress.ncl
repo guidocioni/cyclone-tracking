@@ -16,7 +16,7 @@ begin
 
 ; Open model level output file
 
-diri="2p5km"
+diri="5km_tiedtke"
 
 if diri.eq."control" then
  File = addfile( "./"+diri+"/complete.nc","r")  
@@ -33,11 +33,15 @@ else if diri.eq."10km" then
 else if diri.eq."les" then
     File = addfile( "./"+diri+"/complete.nc","r")  
     Filetopo = addfile( "../data_sicilia/extpar_guido_met_1226m.nc","r")
+else if diri.eq."5km_tiedtke" then
+    File = addfile( "./"+diri+"/complete.nc","r")  
+    Filetopo = addfile( "../data_sicilia/extpar_guido_met_4903m.nc","r")
 end if 
 end if 
 end if 
 end if 
 end if 
+end if
 
 print("DATA READ in "+get_cpu_time()+"s")
 
