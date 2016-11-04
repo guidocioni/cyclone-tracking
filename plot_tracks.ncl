@@ -15,10 +15,10 @@ begin
 
 ; Open model level output file
 
-case=(/"control","2p5km","5km","10km","les"/)
+case=(/"control","2p5km","5km_tiedtke","10km","les"/)
 nrow=40
 ncol=5
-time_start=8
+time_start=8 ;tracked before but only plotted from now on
 
 lat=new((/dimsizes(case),nrow/), double)
 lon=new((/dimsizes(case),nrow/), double)
@@ -50,8 +50,8 @@ ResC@mpOutlineOn = True
 ;ResC@vpHeightF      = 0.5
 ResC@gsnMaximize   = True         ; Maximize plot in frame. 
 
-wks = gsn_open_wks("x11","tracks") 
-cmap = read_colormap_file("MPL_gist_gray")
+wks = gsn_open_wks("pdf","tracks") 
+cmap = read_colormap_file("GMT_haxby")
 res_lb                    = True
 res_lb@vpWidthF           = 0.50
 res_lb@vpHeightF          = 0.10
@@ -67,29 +67,29 @@ lres= True
 lres@gsLineThicknessF = 3.0
 mres=True
 MarkerIndex=ispan(15, 0, 1)
-mres@gsMarkerSizeF = 0.005
+mres@gsMarkerSizeF = 0.007
 
 txres=True
 txres@txFontHeightF = 0.01
 
 map=gsn_csm_map(wks,ResC)
-cnLevels=fspan(min(mslp_min),max(mslp_min),10)
+cnLevels=fspan(min(mslp_min),max(mslp_min),25)
 
 marker=new(dimsizes(case), graphic)
 text=new(dimsizes(case), graphic)
 
 do i=0,dimsizes(case)-1
   do j=time_start,dimsizes(mslp_min(i,:))-2
-   lres@gsLineColor=get_color_rgba(cmap,cnLevels,avg( (/mslp_min(i,j),mslp_min(i,j+1)/)))
+   lres@gsLineColor=get_color_rgba(cmap,cnLevels,avg((/mslp_min(i,j),mslp_min(i,j+1)/)))
    gsn_polyline(wks,map,(/lon(i,j),lon(i,j+1)/),(/lat(i,j),lat(i,j+1)/),lres)
-   mres@gsMarkerIndex = MarkerIndex(i)
-   marker(i) = gsn_add_polymarker(wks,map,lon(i,time_start:),lat(i,time_start:),mres)
-   text(i)   = gsn_add_text(wks, map,case(i),lon(i,dimsizes(mslp_min(i,:))-1)-0.01, lat(i,dimsizes(mslp_min(i,:))-1)+0.01,txres)
  delete(lres@gsLineColor) 
 end do
- gsn_labelbar_ndc(wks,dimsizes(cnLevels)+1,floor(cnLevels),0.30,0.30,res_lb)
+mres@gsMarkerIndex = MarkerIndex(i)
+marker(i) = gsn_add_polymarker(wks,map,lon(i,time_start:),lat(i,time_start:),mres)
+text(i)   = gsn_add_text(wks, map,case(i),lon(i,dimsizes(mslp_min(i,:))-1)-0.01, lat(i,dimsizes(mslp_min(i,:))-1)+0.01,txres)
 end do
 
+gsn_labelbar_ndc(wks,dimsizes(cnLevels)+1,floor(cnLevels),0.30,0.30,res_lb)
 draw(map)
 frame(wks)
 

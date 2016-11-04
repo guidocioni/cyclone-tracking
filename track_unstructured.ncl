@@ -16,7 +16,7 @@ begin
 
 ; Open model level output file
 
-diri="5km_tiedtke"
+diri="2p5km"
 
 if diri.eq."control" then
  File = addfile( "./"+diri+"/complete.nc","r")  
@@ -36,11 +36,23 @@ else if diri.eq."les" then
 else if diri.eq."5km_tiedtke" then
     File = addfile( "./"+diri+"/complete.nc","r")  
     Filetopo = addfile( "../data_sicilia/extpar_guido_met_4903m.nc","r")
+else if diri.eq."flat_oro" then
+    File = addfile( "./"+diri+"/complete.nc","r")  
+    Filetopo = addfile( "../data_sicilia/extpar_guido_met_1226m.nc","r")
+else if diri.eq."control_dual" then
+    File = addfile( "./"+diri+"/complete.nc","r")  
+    Filetopo = addfile( "../data_sicilia/extpar_guido_met_1226m.nc","r")
+else if diri.eq."les_hires" then
+    File = addfile( "./"+diri+"/complete.nc","r")  
+    Filetopo = addfile( "../data_sicilia/extpar_guido_met_0613m.nc","r")
 end if 
 end if 
 end if 
 end if 
 end if 
+end if 
+end if
+end if
 end if
 
 print("DATA READ in "+get_cpu_time()+"s")
@@ -51,9 +63,14 @@ gust=File->sp_10m
 mslp=(File->pres_msl)/100.
 topo=Filetopo->topography_c
 
-; temp=File->temp
-; pv=File->pv_2
-; pv=pv/PVU
+ temp=File->temp
+ ; u=File->u
+ ; v=File->v
+
+ if diri.ne."les_hires" then
+   pv=File->pv_2
+   pv=pv/PVU
+ end if 
 
 lon = File->clon * rad2deg ; cell center, lon (ncells)
 lat = File->clat * rad2deg ; cell center, lat (ncells)
@@ -66,7 +83,7 @@ print("VARIABLES ASSIGNED in "+get_cpu_time()+"s")
 ;print("max(lat) = "+max(lat)) 
 
 mslp=mask(mslp, topo.ge.5 , False) 
-;temp=mask(temp, topo.ge.5, False)
+temp=mask(temp, topo.ge.5, False)
 
 print("MASKING DONE in "+get_cpu_time()+"s")
 
@@ -88,7 +105,7 @@ ResC@mpDataBaseVersion  = "HighRes"
 ;ResC@vpHeightF      = 0.5
 ResC@gsnMaximize   = True         ; Maximize plot in frame. 
 
-wks = gsn_open_wks("x11","track") 
+wks = gsn_open_wks("pdf","track") 
 cmap = read_colormap_file("amwg_blueyellowred")
 res_lb                    = True
 res_lb@vpWidthF           = 0.50
@@ -114,7 +131,7 @@ txres@txFontHeightF = 0.01
 ;ResC@gsnCenterString= "track"
 
 start=0
-limit=40
+limit=48
 
 lat_min=new(limit-start+1, double)
 lon_min=new(limit-start+1, double)
@@ -205,7 +222,6 @@ alist=[/hour_acc,lon_min,lat_min,mslp_min,gust_max/]
 write_table(diri+"_track.txt","w",alist,"%2i%10.8f%10.8f%8.4f%4.2f")
 
 exit
-
 ; plot centroid
 ; with temp. perturbation, and mslp
 
@@ -232,7 +248,13 @@ do i=start,limit
    centroid=ind(lon^2+lat^2-2*lon*lon_min(i)-2*lat*lat_min(i) .le. radius^2-lon_min(i)^2-lat_min(i)^2)
    mslp_c=mslp(i,centroid)
    temp_c=temp(i,level,centroid)
-   pv_c=pv(i,{35000},centroid)
+   ;pv_c=pv(i,{35000},centroid)
+
+   ; u_c=u(i,89,centroid)
+   ; v_c=v(i,89,centroid)
+   ; lat_c=tofloat(lat(centroid))
+   ; lon_c=tofloat(lon(centroid))
+
    resc@gsnCenterString = hour(i)
    resc@sfXArray = lon(centroid) 
    resc@sfYArray = lat(centroid) 
@@ -240,18 +262,27 @@ do i=start,limit
    resc2@sfYArray = lat(centroid)
    resc3@sfXArray = lon(centroid) 
    resc3@sfYArray = lat(centroid)
+
    wks2= gsn_open_wks("png","centroid"+i)
    plot=gsn_csm_contour(wks2, temp_c-avg(temp_c), resc)
    over=gsn_csm_contour(wks2, mslp_c, resc2)
-   over2=gsn_csm_contour(wks2, pv_c, resc3)
+   ;over2=gsn_csm_contour(wks2, pv_c, resc3)
+
    overlay(plot,over)
-   overlay(plot,over2)
+   ;overlay(plot,over2)
    draw(plot)
+   ; wmsetp("vcw", 0.5)
+   ; wmsetp("vch", 0.01)
+   ; wmsetp("vrs", 25.)
+   ; wmsetp("vrn", 0.005)
+
+   ;wmvectmap(wks2, lat_c, lon_c, u_c, v_c)
    frame(wks2)
-   delete([/centroid, mslp_c, temp_c, pv_c, resc@sfXArray, resc@sfYArray, resc2@sfXArray, resc2@sfYArray, resc3@sfXArray, resc3@sfYArray/])
+   delete([/centroid, mslp_c, temp_c, resc@sfXArray, resc@sfYArray, resc2@sfXArray, resc2@sfYArray, resc3@sfXArray, resc3@sfYArray/])
+   ; delete([/u_c, v_c, lat_c, lon_c, pv_c/])
 end do
 
-wks3 = gsn_open_wks("png","mslp_wind") 
+wks3 = gsn_open_wks("pdf","mslp_wind") 
 resxy=True
 resxy@vpWidthF       = 0.9
 resxy@vpHeightF      = 0.5
