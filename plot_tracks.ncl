@@ -15,10 +15,11 @@ begin
 
 ; Open model level output file
 
-case=(/"control","2p5km","5km_tiedtke","10km","les"/)
-nrow=40
+case=(/"10km","5km","2p5km","control","nested"/)
+nrow=37
 ncol=5
 time_start=8 ;tracked before but only plotted from now on
+time_stop=35
 
 lat=new((/dimsizes(case),nrow/), double)
 lon=new((/dimsizes(case),nrow/), double)
@@ -32,6 +33,14 @@ do i=0, dimsizes(case)-1
   mslp_min(i,:)=data (:,3)
   gust_max(i,:)=data (:,4)
 end do
+
+  data_obs = asciiread ("traiettoria_obs.txt" , (/27,4/), "double")
+ lon_obs = data_obs(:,2)
+ lat_obs = data_obs(:,3)
+ time_obs= data_obs(:,1)
+ time_obs@longname= "Time"
+ time_obs@units = "hours"
+
 ; create plot
 
 ResC = True
@@ -39,21 +48,24 @@ ResC@gsnDraw=False
 ResC@gsnFrame = False
 ResC@mpLimitMode = "LatLon"
 ResC@mpMaxLonF    = 17                      ; specify the plot domain
-ResC@mpMinLonF    = 11.5                      ;                         
-ResC@mpMinLatF    = 35                     ;
-ResC@mpMaxLatF    = 39                     ;
+ResC@mpMinLonF    = 11.9                      ;                         
+ResC@mpMinLatF    = 34.7                     ;
+ResC@mpMaxLatF    = 38.5                     ;
 ResC@mpDataBaseVersion  = "HighRes"
 ResC@mpOutlineOn = True
+ResC@gsnMajorLatSpacing = 1
+ResC@gsnMajorLonSpacing = 1
+ResC@tmXBLabelFontHeightF = 0.01
 ;ResC@gsnAddCyclic = False
 
 ;ResC@vpWidthF       = 0.9
-;ResC@vpHeightF      = 0.5
 ResC@gsnMaximize   = True         ; Maximize plot in frame. 
 
-wks = gsn_open_wks("pdf","tracks") 
-cmap = read_colormap_file("GMT_haxby")
+wks = gsn_open_wks("x11","tracks") 
+;cmap = read_colormap_file("GMT_haxby")
+cmap = read_colormap_file("gsdtol")
 res_lb                    = True
-res_lb@vpWidthF           = 0.50
+res_lb@vpWidthF           = 0.60
 res_lb@vpHeightF          = 0.10
 res_lb@lbPerimOn          = False            ; Turn off perimeter.
 res_lb@lbOrientation      = "Horizontal"     ; Default is vertical.
@@ -67,7 +79,15 @@ lres= True
 lres@gsLineThicknessF = 3.0
 mres=True
 MarkerIndex=ispan(15, 0, 1)
-mres@gsMarkerSizeF = 0.007
+mres@gsMarkerSizeF = 0.008
+
+ mres2=True
+ mres2@gsMarkerIndex = 16
+ mres2@gsMarkerSizeF = 0.01
+
+  pres=True
+ pres@gsLineColor="black"
+ pres@gsLineThicknessF = 2.0
 
 txres=True
 txres@txFontHeightF = 0.01
@@ -79,18 +99,20 @@ marker=new(dimsizes(case), graphic)
 text=new(dimsizes(case), graphic)
 
 do i=0,dimsizes(case)-1
-  do j=time_start,dimsizes(mslp_min(i,:))-2
+  do j=time_start,time_stop
    lres@gsLineColor=get_color_rgba(cmap,cnLevels,avg((/mslp_min(i,j),mslp_min(i,j+1)/)))
    gsn_polyline(wks,map,(/lon(i,j),lon(i,j+1)/),(/lat(i,j),lat(i,j+1)/),lres)
  delete(lres@gsLineColor) 
 end do
 mres@gsMarkerIndex = MarkerIndex(i)
-marker(i) = gsn_add_polymarker(wks,map,lon(i,time_start:),lat(i,time_start:),mres)
-text(i)   = gsn_add_text(wks, map,case(i),lon(i,dimsizes(mslp_min(i,:))-1)-0.01, lat(i,dimsizes(mslp_min(i,:))-1)+0.01,txres)
+marker(i) = gsn_add_polymarker(wks,map,lon(i,time_start:time_stop),lat(i,time_start:time_stop),mres)
+text(i)   = gsn_add_text(wks, map,case(i),lon(i,time_stop)-0.01, lat(i,time_stop-1)+0.01,txres)
 end do
 
-gsn_labelbar_ndc(wks,dimsizes(cnLevels)+1,floor(cnLevels),0.30,0.30,res_lb)
+marker_obs = gsn_add_polymarker(wks,map,lon_obs,lat_obs,mres2)
+line_obs   = gsn_add_polyline(wks,map,lon_obs,lat_obs,pres)
+
+gsn_labelbar_ndc(wks,dimsizes(cnLevels)+1,floor(cnLevels),0.3,0.3,res_lb)
 draw(map)
 frame(wks)
-
 end

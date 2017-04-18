@@ -1,3 +1,24 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+;; Description: Take an array of data, sort it, remove duplicates, and 
+;return 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+undef ( "remove_duplicates" ) 
+function remove_duplicates( \ 
+  i_data : numeric \ 
+) 
+begin 
+  data = ndtooned( i_data ) 
+  qsort(data) 
+  duplicate = new( dimsizes(data), logical ) 
+  duplicate(0) = False 
+  do i = 1, dimsizes(data)-1 
+    duplicate(i) = ( data(i).eq.data(i-1) ) 
+  end do 
+  uniqueInd = ind(.not.duplicate) 
+  retVal = data(uniqueInd) 
+  return(retVal) 
+end ; remove_duplicates 
+
 load "$NCARG_ROOT/lib/ncarg/nclscripts/csm/gsn_code.ncl"
 load "$NCARG_ROOT/lib/ncarg/nclscripts/csm/gsn_csm.ncl"
 load "$NCARG_ROOT/lib/ncarg/nclscripts/csm/contributed.ncl"
@@ -14,12 +35,17 @@ PVU=1E-6
 
 begin
 
-; Open model level output file
-
-diri="2p5km"
+export_text           = False
+plot_map              = False
+plot_centroid         = False
+plot_timeseries       = False
+plot_cross            = False
+plot_vertical_section = True
+diri="control"
 
 if diri.eq."control" then
- File = addfile( "./"+diri+"/complete.nc","r")  
+ File = addfile( "./"+diri+"/complete.nc","r")
+ File_pres=  addfile( "./"+diri+"/complete_pressure.nc","r")
  Filetopo = addfile( "../data_sicilia/extpar_guido_met_1226m.nc","r")
 else if diri.eq."5km" then
  File = addfile( "./"+diri+"/complete.nc","r")  
@@ -45,6 +71,9 @@ else if diri.eq."control_dual" then
 else if diri.eq."les_hires" then
     File = addfile( "./"+diri+"/complete.nc","r")  
     Filetopo = addfile( "../data_sicilia/extpar_guido_met_0613m.nc","r")
+else if diri.eq."nested" then
+    File = addfile( "./"+diri+"/DOM03.nc","r")  
+    Filetopo = addfile( "../data_sicilia/extpar_nested_met306m.nc","r")
 end if 
 end if 
 end if 
@@ -54,23 +83,57 @@ end if
 end if
 end if
 end if
+end if 
 
 print("DATA READ in "+get_cpu_time()+"s")
 
 time= File->time
 utc_date=cd_calendar(time, 0)
+date=cd_calendar(time, -3)
 gust=File->sp_10m
 mslp=(File->pres_msl)/100.
 topo=Filetopo->topography_c
+height=(/20.000, 65.677, 131.880, 216.516, 318.336, 436.493, 570.373,\
+        719.514, 883.557, 1062.224, 1255.291, 1462.584, 1683.966, 1919.330, \
+        2168.596, 2431.707, 2708.624, 2999.329, 3303.815, 3622.092, 3954.183,\
+        4300.121, 4659.952, 5033.731, 5421.524, 5821.524, 6221.524, 6621.524,\
+        7021.524, 7421.524, 7821.524, 8221.524, 8621.524, 9021.524, 9421.524,\ 
+        9821.524, 10221.524, 10621.524, 11021.524, 11421.524, 11821.524, 12221.524,\
+        12621.524, 13021.524, 13421.524, 13821.524, 14234.210, 14660.386, 15113.594,\
+        15595.549, 16108.074, 16653.108, 17232.713, 17849.081, 18504.545, 19201.585,\
+        19942.837, 20731.107, 21569.375, 22460.814, 23408.796, 24416.908, 25488.963,\
+        26617.350, 27803.623, 29038.622, 30322.249, 31655.249, 33038.397, 34472.507,\
+        35958.428, 37497.048, 39089.298, 40736.151, 42438.627, 44197.795, 46014.776,\
+        47890.748, 49826.951, 51824.685, 53877.930, 55976.216, 58132.167, 60335.466,\
+        62606.299, 64946.444, 67357.797, 69842.381, 72363.546, 75000.000/) 
+height=height(::-1)
 
- temp=File->temp
+temp=File->temp
+temp=temp-273.15
  ; u=File->u
  ; v=File->v
+ lhfl_s=File->lhfl_s
 
- if diri.ne."les_hires" then
-   pv=File->pv_2
-   pv=pv/PVU
- end if 
+; if isfilevar(File, "pv_2") then
+; pv=File->pv_2
+; pv=pv/PVU
+; pv&height=height
+; else if isfilevar(File, "pv") then
+;    pv=File->pv
+;    pv=pv/PVU
+; pv&height=height
+; end if
+; end if
+
+pv=File->pv 
+pv=pv/PVU
+pv@units="PVU"
+
+levels_time=dim_avg_n_Wrap(File->pres, 2)
+levels=dim_avg_n_Wrap(levels_time, 0)
+delete(levels_time) 
+
+ ; temp&height=height
 
 lon = File->clon * rad2deg ; cell center, lon (ncells)
 lat = File->clat * rad2deg ; cell center, lat (ncells)
@@ -82,8 +145,9 @@ print("VARIABLES ASSIGNED in "+get_cpu_time()+"s")
 ;print("max(lon) = "+max(lon)) 
 ;print("max(lat) = "+max(lat)) 
 
-mslp=mask(mslp, topo.ge.5 , False) 
+mslp=mask(mslp, topo.ge.50 , False) 
 temp=mask(temp, topo.ge.5, False)
+lhfl_s=mask(lhfl_s, topo.ge.5, False)
 
 print("MASKING DONE in "+get_cpu_time()+"s")
 
@@ -105,7 +169,6 @@ ResC@mpDataBaseVersion  = "HighRes"
 ;ResC@vpHeightF      = 0.5
 ResC@gsnMaximize   = True         ; Maximize plot in frame. 
 
-wks = gsn_open_wks("pdf","track") 
 cmap = read_colormap_file("amwg_blueyellowred")
 res_lb                    = True
 res_lb@vpWidthF           = 0.50
@@ -131,15 +194,21 @@ txres@txFontHeightF = 0.01
 ;ResC@gsnCenterString= "track"
 
 start=0
-limit=48
+limit=36
 
 lat_min=new(limit-start+1, double)
 lon_min=new(limit-start+1, double)
 mslp_min=new(limit-start+1, double)
+mslp_min@long_name="Mean Sea-Level Pressure minimum [hPa]"
 gust_max=new(limit-start+1, double)
+gust_max@long_name="Maximum wind gust [m/s]"
+lhfl_radius=new(limit-start+1, double)
+lhfl_radius@long_name="Surface Latent Heat Flux [W/m**2]"
 hour=new(limit-start+1, string)
 hour_acc=new(limit-start+1, integer)
 hour_acc=ispan(start, limit, 1)
+hour_acc@long_name="Simulation lead time [hour]"
+hour_acc@units = "hours since 2014-11-07 00:00:00"
 
 ;first box to search the minimum
 min_lon=11.
@@ -148,7 +217,7 @@ min_lat=35.
 max_lat=37.
 box_ini=ind(lon.ge.min_lon .and. lon.le.max_lon .and. lat.ge.min_lat .and. lat.le.max_lat)
 
-radius= 1.0 
+radius= 0.5 
 box_dim=0.25 ; units latitude/longitude
 
 print("Quest for the minimum is startinnngggg")
@@ -172,6 +241,7 @@ do i=start,limit
        end if
        circle=ind(lon^2+lat^2-2*lon*lon_min(k)-2*lat*lat_min(k) .le. radius^2-lon_min(k)^2-lat_min(k)^2)
        gust_max(k)=max(gust(i,0,circle))
+       lhfl_radius(k)=avg(lhfl_s(i,circle))
        ; just to be sure that shit does NOT happen
        delete([/cell_min, circle/])
    else
@@ -194,14 +264,17 @@ do i=start,limit
        end if
        circle=ind(lon^2+lat^2-2*lon*lon_min(k)-2*lat*lat_min(k) .le. radius^2-lon_min(k)^2-lat_min(k)^2)
        gust_max(k)=max(gust(i,0,circle))
+       lhfl_radius(k)=avg(lhfl_s(i,circle))
        ; just to be sure that shit does NOT happen
        delete([/box_new, lat_new, lon_new, circle, cell_min/])
    end if
-   print("iteration n."+(k+0.0))
-   ;print(lat_min(i)+" | "+lon_min(i)+" | "+mslp_min(i))
+   ; print("iteration n."+(k+0.0))
+   ; print(lat_min(i)+" | "+lon_min(i)+" | "+mslp_min(i))
    hour(k)=utc_date(i,3)
 end do 
 
+if plot_map then
+wks = gsn_open_wks("x11","track") 
 print("Plotting map")
 map=gsn_csm_map(wks,ResC)
 
@@ -216,12 +289,14 @@ gsn_labelbar_ndc(wks,dimsizes(cnLevels)+1,floor(cnLevels),0.30,0.30,res_lb)
 
 draw(map)
 frame(wks)
+end if
 
+if export_text then 
 ; write coordinates and mslp in a text file
 alist=[/hour_acc,lon_min,lat_min,mslp_min,gust_max/]
 write_table(diri+"_track.txt","w",alist,"%2i%10.8f%10.8f%8.4f%4.2f")
+end if
 
-exit
 ; plot centroid
 ; with temp. perturbation, and mslp
 
@@ -242,12 +317,12 @@ resc3@cnLevelSpacingF = 3.0
 resc3@cnLineColor = "purple"
 resc3@cnLineThicknessF = 2.0
 
-radius=1.0
-level=85
+radius=1.
+; level=85000
 do i=start,limit
-   centroid=ind(lon^2+lat^2-2*lon*lon_min(i)-2*lat*lat_min(i) .le. radius^2-lon_min(i)^2-lat_min(i)^2)
-   mslp_c=mslp(i,centroid)
-   temp_c=temp(i,level,centroid)
+   centroid:=ind(lon^2+lat^2-2*lon*lon_min(i)-2*lat*lat_min(i) .le. radius^2-lon_min(i)^2-lat_min(i)^2)
+   mslp_c:=mslp(i,centroid)
+   temp_c:=dim_avg_n_Wrap(temp(i,79:85,centroid),0)
    ;pv_c=pv(i,{35000},centroid)
 
    ; u_c=u(i,89,centroid)
@@ -255,15 +330,19 @@ do i=start,limit
    ; lat_c=tofloat(lat(centroid))
    ; lon_c=tofloat(lon(centroid))
 
-   resc@gsnCenterString = hour(i)
-   resc@sfXArray = lon(centroid) 
-   resc@sfYArray = lat(centroid) 
-   resc2@sfXArray = lon(centroid) 
-   resc2@sfYArray = lat(centroid)
-   resc3@sfXArray = lon(centroid) 
-   resc3@sfYArray = lat(centroid)
+   resc@gsnCenterString = date(i)+"| Temperature anomaly and MSLP"
+   resc@sfXArray:= lon(centroid) 
+   resc@sfYArray:= lat(centroid)
+   resc@cnLevelSelectionMode= "ManualLevels"
+   resc@cnMinLevelValF = -3
+   resc@cnMaxLevelValF = 3
+   resc2@sfXArray:= lon(centroid) 
+   resc2@sfYArray:= lat(centroid)
+   resc@cnFillPalette="GHRSST_anomaly"
+   resc@lbOrientation ="Vertical"
 
-   wks2= gsn_open_wks("png","centroid"+i)
+   if plot_centroid then
+   wks2= gsn_open_wks("pdf","centroid_"+diri+"_"+i)
    plot=gsn_csm_contour(wks2, temp_c-avg(temp_c), resc)
    over=gsn_csm_contour(wks2, mslp_c, resc2)
    ;over2=gsn_csm_contour(wks2, pv_c, resc3)
@@ -271,32 +350,114 @@ do i=start,limit
    overlay(plot,over)
    ;overlay(plot,over2)
    draw(plot)
-   ; wmsetp("vcw", 0.5)
-   ; wmsetp("vch", 0.01)
-   ; wmsetp("vrs", 25.)
-   ; wmsetp("vrn", 0.005)
-
-   ;wmvectmap(wks2, lat_c, lon_c, u_c, v_c)
    frame(wks2)
-   delete([/centroid, mslp_c, temp_c, resc@sfXArray, resc@sfYArray, resc2@sfXArray, resc2@sfYArray, resc3@sfXArray, resc3@sfYArray/])
-   ; delete([/u_c, v_c, lat_c, lon_c, pv_c/])
+   end if
 end do
 
-wks3 = gsn_open_wks("pdf","mslp_wind") 
+if plot_timeseries then
+wks3 = gsn_open_wks("pdf","mslp_lhflx_nested") 
 resxy=True
 resxy@vpWidthF       = 0.9
 resxy@vpHeightF      = 0.5
 resxy@gsnDraw = False
+resxy@gsnFrame = False
 resxy@trXMinF = start
 resxy@trXMaxF = limit
 resxy@xyLineColors="black"
+resxy@xyLineThicknessF = 4
+resxy@tiYAxisFontHeightF = 0.02
 resxy@gsnMaximize   = True
 resxy2=resxy
 resxy2@xyLineColors="red"
 
-timeseries=gsn_csm_xy2(wks3, hour_acc, mslp_min, gust_max,resxy,resxy2)
+timeseries=gsn_csm_xy2(wks3, hour_acc, mslp_min, -lhfl_radius,resxy,resxy2)
 
 draw(timeseries)
 frame(wks3)
+end if 
+
+if plot_cross then
+; plot cross section through cyclone
+
+; define variables in a circle around the minimum
+resc = True
+resc@cnFillOn = True 
+resc@cnLinesOn=False
+resc@gsnDraw = False
+resc@gsnFrame = False
+resc2=resc
+resc2@cnFillOn = False 
+resc2@cnLinesOn= True
+
+radius=0.5
+do i=start,limit
+   centroid:=ind(lon^2+lat^2-2*lon*lon_min(i)-2*lat*lat_min(i) .le. radius^2-lon_min(i)^2-lat_min(i)^2)
+   lat_c:=tofloat(lat(centroid))
+   lon_c:=tofloat(lon(centroid))
+   temp_c:=temp(i,:,centroid)
+
+  qsort(lon_c)
+  qsort(lat_c)
+
+   cross_temp:=new((/dimsizes(temp&height), dimsizes(lon_c)/), typeof(temp))
+   do j=0,dimsizes(lon_c)-1
+    inds_lat:=ind(lon_c.eq.lon_c(j))
+    print(inds_lat)
+    print(lat_c(inds_lat))
+    print(lon_c(inds_lat))
+    break
+   end do 
+
+   wks2= gsn_open_wks("x11","cross_"+diri+"_"+i)
+   plot=gsn_csm_contour(wks2, cross_temp, resc)   
+
+   draw(plot)
+   frame(wks2)
+   ; delete([/centroid, lat_c, lon_c, cross_temp, inds_lat/])
+end do
+end if
+
+if plot_vertical_section then
+
+; define variables in a circle around the minimum
+ respres=True 
+ respres@gsnMaximize = True 
+   
+  respres@vpHeightF = 0.7
+  respres@vpWidthF = 1.0
+  respres@cnFillOn             = True                  ; turn on color
+  ;respres@cnFillPalette = "GMT_wysiwyg"
+  respres@cnFillPalette = "MPL_gist_gray"
+  respres@cnLinesOn            = False                 ; no contour lines
+  
+  respres@cnLevelSelectionMode = "ManualLevels"       ; set manual contour levels
+  respres@cnMinLevelValF       = -10.                  ; set min contour level
+  respres@cnMaxLevelValF       =  15.                  ; set max contour level
+  respres@cnLevelSpacingF      = 1                  ; set contour spacing
+
+radius=0.2
+pv_c=new((/dimsizes(levels), limit-start+1/), typeof(pv))
+k=0
+do i=start,limit
+  ; resxy@gsnCenterString = date(i)+" | PV | "+radius+"deg. centroid average"
+   centroid:=ind(lon^2+lat^2-2*lon*lon_min(i)-2*lat*lat_min(i) .le. radius^2-lon_min(i)^2-lat_min(i)^2)
+   lat_c:=lat(centroid)
+   lon_c:=lon(centroid)
+   ; temp_c:=dim_avg_n_Wrap(temp(i,lev_up:lev_down,centroid), 1)  ;only vertical dependency 
+   pv_c(:,k)=dim_avg_n_Wrap(pv(i,:,centroid), 1)
+   k=k+1
+end do
+    
+  pv_c!0= "lev"
+  pv_c!1= "time"
+  pv_c&lev = levels 
+  pv_c&time = hour_acc 
+
+   wks2= gsn_open_wks("x11","vertical_"+diri)
+   ; plot=gsn_csm_xy(wks2, pv_c(::-1), levels(::-1), resxy)   
+   plot=gsn_csm_pres_hgt(wks2, pv_c({100000:20000},:), respres)
+   frame(wks2)
+
+end if
 
 end
