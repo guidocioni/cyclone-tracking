@@ -36,12 +36,12 @@ PVU=1E-6
 begin
 
 export_text           = False
-plot_map              = False
-plot_centroid         = False
+plot_map              = True 
+plot_centroid         = True
 plot_timeseries       = False
 plot_cross            = False
-plot_vertical_section = True
-diri="control"
+plot_vertical_section = False
+diri="5km"
 
 if diri.eq."control" then
  File = addfile( "./"+diri+"/complete.nc","r")
@@ -49,12 +49,14 @@ if diri.eq."control" then
  Filetopo = addfile( "../data_sicilia/extpar_guido_met_1226m.nc","r")
 else if diri.eq."5km" then
  File = addfile( "./"+diri+"/complete.nc","r")  
+ File_pres=  addfile( "./"+diri+"/complete_pressure.nc","r")
  Filetopo = addfile( "../data_sicilia/extpar_guido_met_4903m.nc","r")
 else if diri.eq."2p5km" then
    File = addfile( "./"+diri+"/complete.nc","r")  
    Filetopo = addfile( "../data_sicilia/extpar_guido_met_2451m.nc","r")
 else if diri.eq."10km" then
     File = addfile( "./"+diri+"/complete.nc","r")  
+    File_pres=  addfile( "./"+diri+"/complete_pressure.nc","r")
     Filetopo = addfile( "../data_sicilia/extpar_guido_met_0010km.nc","r")
 else if diri.eq."les" then
     File = addfile( "./"+diri+"/complete.nc","r")  
@@ -74,6 +76,25 @@ else if diri.eq."les_hires" then
 else if diri.eq."nested" then
     File = addfile( "./"+diri+"/DOM03.nc","r")  
     Filetopo = addfile( "../data_sicilia/extpar_nested_met306m.nc","r")
+else if diri.eq."nested_fixwind" then
+    File = addfile( "./"+diri+"/complete.nc","r")  
+    Filetopo = addfile( "../data_sicilia/extpar_nested_met306m.nc","r")
+else if diri.eq."control_latheat" then
+    File = addfile( "./"+diri+"/complete.nc","r")  
+    Filetopo = addfile( "../data_sicilia/extpar_guido_met_1226m.nc","r")
+    File_pres=  addfile( "./"+diri+"/complete_pressure.nc","r")
+else if diri.eq."nested_windsqrt" then
+    File = addfile( "./"+diri+"/DOM03.nc","r")  
+    Filetopo = addfile( "../data_sicilia/extpar_nested_met306m.nc","r")
+else if diri.eq."nested_windfourth" then
+    File = addfile( "./"+diri+"/DOM03.nc","r")  
+    Filetopo = addfile( "../data_sicilia/extpar_nested_met306m.nc","r")
+else if diri.eq."nested_windsixt" then
+    File = addfile( "./"+diri+"/DOM03.nc","r")  
+    Filetopo = addfile( "../data_sicilia/extpar_nested_met306m.nc","r")
+else if diri.eq."nested_wind1p25" then
+    File = addfile( "./"+diri+"/DOM03.nc","r")  
+    Filetopo = addfile( "../data_sicilia/extpar_nested_met306m.nc","r")
 end if 
 end if 
 end if 
@@ -84,6 +105,12 @@ end if
 end if
 end if
 end if 
+end if
+end if 
+end if
+end if
+end if
+end if
 
 print("DATA READ in "+get_cpu_time()+"s")
 
@@ -112,7 +139,7 @@ temp=File->temp
 temp=temp-273.15
  ; u=File->u
  ; v=File->v
- lhfl_s=File->lhfl_s
+ ;lhfl_s=File->lhfl_s
 
 ; if isfilevar(File, "pv_2") then
 ; pv=File->pv_2
@@ -125,13 +152,11 @@ temp=temp-273.15
 ; end if
 ; end if
 
-pv=File->pv 
-pv=pv/PVU
-pv@units="PVU"
+  pv=File_pres->pv 
+  pv=pv/PVU
+  pv@units="PVU"
 
-levels_time=dim_avg_n_Wrap(File->pres, 2)
-levels=dim_avg_n_Wrap(levels_time, 0)
-delete(levels_time) 
+  levels=File_pres->lev
 
  ; temp&height=height
 
@@ -147,7 +172,7 @@ print("VARIABLES ASSIGNED in "+get_cpu_time()+"s")
 
 mslp=mask(mslp, topo.ge.50 , False) 
 temp=mask(temp, topo.ge.5, False)
-lhfl_s=mask(lhfl_s, topo.ge.5, False)
+;lhfl_s=mask(lhfl_s, topo.ge.5, False)
 
 print("MASKING DONE in "+get_cpu_time()+"s")
 
@@ -240,8 +265,8 @@ do i=start,limit
            mslp_min(k)= mslp(i,cell_min)
        end if
        circle=ind(lon^2+lat^2-2*lon*lon_min(k)-2*lat*lat_min(k) .le. radius^2-lon_min(k)^2-lat_min(k)^2)
-       gust_max(k)=max(gust(i,0,circle))
-       lhfl_radius(k)=avg(lhfl_s(i,circle))
+       gust_max(k)=avg(gust(i,0,circle))
+       ;lhfl_radius(k)=avg(lhfl_s(i,circle))
        ; just to be sure that shit does NOT happen
        delete([/cell_min, circle/])
    else
@@ -263,8 +288,8 @@ do i=start,limit
            mslp_min(k)= mslp(i,cell_min)
        end if
        circle=ind(lon^2+lat^2-2*lon*lon_min(k)-2*lat*lat_min(k) .le. radius^2-lon_min(k)^2-lat_min(k)^2)
-       gust_max(k)=max(gust(i,0,circle))
-       lhfl_radius(k)=avg(lhfl_s(i,circle))
+       gust_max(k)=avg(gust(i,0,circle))
+       ;lhfl_radius(k)=avg(lhfl_s(i,circle))
        ; just to be sure that shit does NOT happen
        delete([/box_new, lat_new, lon_new, circle, cell_min/])
    end if
@@ -317,6 +342,15 @@ resc3@cnLevelSpacingF = 3.0
 resc3@cnLineColor = "purple"
 resc3@cnLineThicknessF = 2.0
 
+resc@cnLevelSelectionMode= "ManualLevels"
+resc@cnMinLevelValF = -3
+resc@cnMaxLevelValF = 3 
+resc@cnFillPalette="GHRSST_anomaly"
+; resc@lbOrientation ="Vertical"
+
+resc2@cnLineLabelDensityF  = 1.1
+resc2@cnLineLabelFontHeightF = 0.01 
+
 radius=1.
 ; level=85000
 do i=start,limit
@@ -333,13 +367,8 @@ do i=start,limit
    resc@gsnCenterString = date(i)+"| Temperature anomaly and MSLP"
    resc@sfXArray:= lon(centroid) 
    resc@sfYArray:= lat(centroid)
-   resc@cnLevelSelectionMode= "ManualLevels"
-   resc@cnMinLevelValF = -3
-   resc@cnMaxLevelValF = 3
    resc2@sfXArray:= lon(centroid) 
    resc2@sfYArray:= lat(centroid)
-   resc@cnFillPalette="GHRSST_anomaly"
-   resc@lbOrientation ="Vertical"
 
    if plot_centroid then
    wks2= gsn_open_wks("pdf","centroid_"+diri+"_"+i)
@@ -355,7 +384,7 @@ do i=start,limit
 end do
 
 if plot_timeseries then
-wks3 = gsn_open_wks("pdf","mslp_lhflx_nested") 
+wks3 = gsn_open_wks("x11","mslp_lhflx") 
 resxy=True
 resxy@vpWidthF       = 0.9
 resxy@vpHeightF      = 0.5
@@ -370,7 +399,7 @@ resxy@gsnMaximize   = True
 resxy2=resxy
 resxy2@xyLineColors="red"
 
-timeseries=gsn_csm_xy2(wks3, hour_acc, mslp_min, -lhfl_radius,resxy,resxy2)
+timeseries=gsn_csm_xy2(wks3, hour_acc, mslp_min, gust_max,resxy,resxy2)
 
 draw(timeseries)
 frame(wks3)
@@ -426,8 +455,8 @@ if plot_vertical_section then
   respres@vpHeightF = 0.7
   respres@vpWidthF = 1.0
   respres@cnFillOn             = True                  ; turn on color
-  ;respres@cnFillPalette = "GMT_wysiwyg"
-  respres@cnFillPalette = "MPL_gist_gray"
+  respres@cnFillPalette = "GMT_wysiwyg"
+  ;respres@cnFillPalette = "MPL_gist_gray"
   respres@cnLinesOn            = False                 ; no contour lines
   
   respres@cnLevelSelectionMode = "ManualLevels"       ; set manual contour levels
@@ -435,7 +464,7 @@ if plot_vertical_section then
   respres@cnMaxLevelValF       =  15.                  ; set max contour level
   respres@cnLevelSpacingF      = 1                  ; set contour spacing
 
-radius=0.2
+radius=0.25
 pv_c=new((/dimsizes(levels), limit-start+1/), typeof(pv))
 k=0
 do i=start,limit
@@ -447,13 +476,13 @@ do i=start,limit
    pv_c(:,k)=dim_avg_n_Wrap(pv(i,:,centroid), 1)
    k=k+1
 end do
-    
+   
   pv_c!0= "lev"
   pv_c!1= "time"
   pv_c&lev = levels 
   pv_c&time = hour_acc 
 
-   wks2= gsn_open_wks("x11","vertical_"+diri)
+   wks2= gsn_open_wks("pdf","vertical_"+diri)
    ; plot=gsn_csm_xy(wks2, pv_c(::-1), levels(::-1), resxy)   
    plot=gsn_csm_pres_hgt(wks2, pv_c({100000:20000},:), respres)
    frame(wks2)
